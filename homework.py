@@ -25,15 +25,29 @@ class InfoMessage:
                                    'Дистанция: {distance} км; '
                                    'Ср. скорость: {speed} км/ч; '
                                    'Потрачено ккал: {calories}.')
+
+    FORMAT_OUTPUT: ClassVar[str] = '.3f'  # формат вывода числовых переменных
+
     training_type: str
-    duration: str
-    distance: str
-    speed: str
-    calories: str
+    duration: float
+    distance: float
+    speed: float
+    calories: float
+
+    def format_for_output(self) -> Dict[str, str]:
+        """Изменить формат вывода числовых показателей класса"""
+        kwargs_output: Dict[str, str] = {}
+
+        for key, value in {**asdict(self)}.items():
+            if type(value) != str:
+                kwargs_output[key] = format(value, self.FORMAT_OUTPUT)
+            else:
+                kwargs_output[key] = value
+        return kwargs_output
 
     def get_message(self) -> str:
         """Получить строку сообщения о тренировке."""
-        return self.MESSAGE_TEXT.format(**asdict(self))
+        return self.MESSAGE_TEXT.format(**self.format_for_output())
 
 
 class Training:
@@ -70,10 +84,10 @@ class Training:
     def show_training_info(self) -> InfoMessage:
         """Вернуть информационное сообщение о выполненной тренировке."""
         return InfoMessage(self.__class__.__name__,
-                           format(self.duration, '.3f'),
-                           format(self.get_distance(), '.3f'),
-                           format(self.get_mean_speed(), '.3f'),
-                           format(self.get_spent_calories(), '.3f'))
+                           self.duration,
+                           self.get_distance(),
+                           self.get_mean_speed(),
+                           self.get_spent_calories(),)
 
 
 class Running(Training):
