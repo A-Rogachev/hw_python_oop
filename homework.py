@@ -1,32 +1,15 @@
-from __future__ import annotations
-import sys
-
-from typing import ClassVar, Dict, Type
+from inspect import stack
+from typing import ClassVar, Dict, Union, Type
 from dataclasses import dataclass, asdict
 
 
-TRAINING_TYPES: Dict[str, str] = {
-    'SWM': 'Swimming',
-    'RUN': 'Running',
-    'WLK': 'SportsWalking',
-}
-
-
-class TrainingTypeError(KeyError):
-    """Класс-исключение для класса Training"""
+NOT_IMPLEM_ERROR_MESSAGE: str = ('в классе {} необходимо '
+                                 'переопределить метод {}')
 
 
 @dataclass
 class InfoMessage:
     """Информационное сообщение о тренировке."""
-
-    MESSAGE_TEXT: ClassVar[str] = ('Тип тренировки: {training_type}; '
-                                   'Длительность: {duration} ч.; '
-                                   'Дистанция: {distance} км; '
-                                   'Ср. скорость: {speed} км/ч; '
-                                   'Потрачено ккал: {calories}.')
-
-    FORMAT_OUTPUT: ClassVar[str] = '.3f'  # формат вывода числовых переменных
 
     training_type: str
     duration: float
@@ -34,20 +17,15 @@ class InfoMessage:
     speed: float
     calories: float
 
-    def format_for_output(self) -> Dict[str, str]:
-        """Изменить формат вывода числовых показателей класса"""
-        kwargs_output: Dict[str, str] = {}
-
-        for key, value in {**asdict(self)}.items():
-            if type(value) != str:
-                kwargs_output[key] = format(value, self.FORMAT_OUTPUT)
-            else:
-                kwargs_output[key] = value
-        return kwargs_output
+    MESSAGE_TEXT: ClassVar[str] = ('Тип тренировки: {training_type}; '
+                                   'Длительность: {duration:.3f} ч.; '
+                                   'Дистанция: {distance:.3f} км; '
+                                   'Ср. скорость: {speed:.3f} км/ч; '
+                                   'Потрачено ккал: {calories:.3f}.')
 
     def get_message(self) -> str:
         """Получить строку сообщения о тренировке."""
-        return self.MESSAGE_TEXT.format(**self.format_for_output())
+        return self.MESSAGE_TEXT.format(**asdict(self))
 
 
 class Training:
@@ -78,8 +56,11 @@ class Training:
 
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
-        raise NotImplementedError('в классе не переопределен '
-                                  'метод get_spent_calories')
+        raise NotImplementedError(
+            NOT_IMPLEM_ERROR_MESSAGE.format(
+                self.__class__.__name__, stack()[0][3]
+            )
+        )
 
     def show_training_info(self) -> InfoMessage:
         """Вернуть информационное сообщение о выполненной тренировке."""
@@ -93,14 +74,14 @@ class Training:
 class Running(Training):
     """Тренировка: бег."""
 
-    COEFF_CALORIE_1: float = 18
-    COEFF_CALORIE_2: float = 20
+    SPEED_MULTIPLIER: int = 18
+    SPEED_SUBTRACTOR: int = 20
 
     def get_spent_calories(self) -> float:
-
-        return ((self.COEFF_CALORIE_1
+        """Получить количество затраченных калорий."""
+        return ((self.SPEED_MULTIPLIER
                 * self.get_mean_speed()
-                - self.COEFF_CALORIE_2)
+                - self.SPEED_SUBTRACTOR)
                 * self.weight
                 / self.M_IN_KM
                 * self.duration
@@ -110,8 +91,8 @@ class Running(Training):
 class SportsWalking(Training):
     """Тренировка: спортивная ходьба."""
 
-    COEFF_CALORIE_1: float = 0.035
-    COEFF_CALORIE_2: float = 0.029
+    WEIGHT_COEFFICIENT: float = 0.035
+    SPEED_WEIGHT_COEFFICIENT: float = 0.029
 
     def __init__(self,
                  action: int,
@@ -123,10 +104,10 @@ class SportsWalking(Training):
         self.height = height
 
     def get_spent_calories(self) -> float:
-        return ((self.COEFF_CALORIE_1
+        return ((self.WEIGHT_COEFFICIENT
                 * self.weight
                 + (self.get_mean_speed() ** 2 // self.height)
-                * self.COEFF_CALORIE_2
+                * self.SPEED_WEIGHT_COEFFICIENT
                 * self.weight)
                 * self.duration
                 * self.COEFF_MIN_TO_HOURS)
@@ -136,8 +117,8 @@ class Swimming(Training):
     """Тренировка: плавание."""
 
     LEN_STEP: float = 1.38
-    COEFF_CALORIE_1: float = 1.1
-    COEFF_CALORIE_2: int = 2
+    SPEED_ADD_COEFFICIENT: float = 1.1
+    SPEED_MULTIPLIER: int = 2
 
     def __init__(self,
                  action: int,
@@ -159,21 +140,28 @@ class Swimming(Training):
 
     def get_spent_calories(self) -> float:
         return ((self.get_mean_speed()
-                + self.COEFF_CALORIE_1)
-                * self.COEFF_CALORIE_2
+                + self.SPEED_ADD_COEFFICIENT)
+                * self.SPEED_MULTIPLIER
                 * self.weight)
+
+
+TrainingTypesDict = Dict[str, Union[Type[Swimming],
+                                    Type[Running],
+                                    Type[SportsWalking]]]
+
+TRAINING_TYPES: TrainingTypesDict = {
+    'SWM': Swimming,
+    'RUN': Running,
+    'WLK': SportsWalking,
+}
 
 
 def read_package(workout_type: str, data: list) -> Training:
     """Прочитать данные полученные от датчиков."""
     if workout_type not in TRAINING_TYPES:
-        raise TrainingTypeError('Запрашиваемый тип тренировки '
-                                'отсутствует в БД фитнесс-трекера')
-
-    class_name: str = TRAINING_TYPES[workout_type]
-    request_class: Type[Training] = getattr(sys.modules[__name__], class_name)
-
-    return request_class(*data)
+        raise ValueError('Запрашиваемый тип тренировки '
+                         'отсутствует в БД фитнесс-трекера')
+    return TRAINING_TYPES[workout_type](*data)
 
 
 def main(training: Training) -> None:
