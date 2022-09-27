@@ -1,10 +1,13 @@
 from inspect import stack
-from typing import ClassVar, Dict, Union, Type
-from dataclasses import dataclass, asdict
+from typing import ClassVar, Dict, Type
+from dataclasses import asdict, dataclass
 
 
 NOT_IMPLEM_ERROR_MESSAGE: str = ('в классе {} необходимо '
                                  'переопределить метод {}')
+
+VALUE_ERROR_MESSAGE: str = ('Тип тренировки "{}" '
+                            'отсутствует в БД фитнесс-трекера')
 
 
 @dataclass
@@ -33,7 +36,7 @@ class Training:
 
     LEN_STEP: float = 0.65
     M_IN_KM: int = 1000
-    COEFF_MIN_TO_HOURS: int = 60
+    MINUTES_IN_HOUR: int = 60
 
     def __init__(self,
                  action: int,
@@ -58,7 +61,7 @@ class Training:
         """Получить количество затраченных калорий."""
         raise NotImplementedError(
             NOT_IMPLEM_ERROR_MESSAGE.format(
-                self.__class__.__name__, stack()[0][3]
+                self.__class__.__name__, stack()[0].function
             )
         )
 
@@ -85,7 +88,7 @@ class Running(Training):
                 * self.weight
                 / self.M_IN_KM
                 * self.duration
-                * self.COEFF_MIN_TO_HOURS)
+                * self.MINUTES_IN_HOUR)
 
 
 class SportsWalking(Training):
@@ -110,7 +113,7 @@ class SportsWalking(Training):
                 * self.SPEED_WEIGHT_COEFFICIENT
                 * self.weight)
                 * self.duration
-                * self.COEFF_MIN_TO_HOURS)
+                * self.MINUTES_IN_HOUR)
 
 
 class Swimming(Training):
@@ -145,11 +148,7 @@ class Swimming(Training):
                 * self.weight)
 
 
-TrainingTypesDict = Dict[str, Union[Type[Swimming],
-                                    Type[Running],
-                                    Type[SportsWalking]]]
-
-TRAINING_TYPES: TrainingTypesDict = {
+TRAINING_TYPES: Dict[str, Type[Training]] = {
     'SWM': Swimming,
     'RUN': Running,
     'WLK': SportsWalking,
@@ -159,8 +158,7 @@ TRAINING_TYPES: TrainingTypesDict = {
 def read_package(workout_type: str, data: list) -> Training:
     """Прочитать данные полученные от датчиков."""
     if workout_type not in TRAINING_TYPES:
-        raise ValueError('Запрашиваемый тип тренировки '
-                         'отсутствует в БД фитнесс-трекера')
+        raise ValueError(VALUE_ERROR_MESSAGE.format(workout_type))
     return TRAINING_TYPES[workout_type](*data)
 
 
